@@ -3,9 +3,8 @@ declare(strict_types=1);
 
 namespace BBC\ProgrammesMorphLibrary;
 
-class Client
+use Exception;
+
+class MorphErrorException extends Exception
 {
-    public function __construct()
-    {
-    }
 }
