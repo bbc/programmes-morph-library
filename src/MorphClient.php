@@ -12,6 +12,7 @@ use GuzzleHttp\TransferStats;
 use Psr\Log\LoggerInterface;
 use SplObserver;
 use SplSubject;
+use stdClass;
 
 class MorphClient implements SplSubject
 {
@@ -36,7 +37,7 @@ class MorphClient implements SplSubject
     /** @var UrlBuilder */
     private $urlBuilder;
 
-    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint)
+    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint, int $timeout = 2)
     {
         $this->logger = $logger;
         $this->httpClient = $httpClient;
@@ -49,21 +50,23 @@ class MorphClient implements SplSubject
         $this->urlBuilder = new UrlBuilder($endpoint);
     }
 
-    public function getView(string $template, string $id, array $parameters): MorphView
+    /** @throws MorphErrorException */
+    public function getView(string $template, string $id, array $parameters = [], array $queryParameters = []): MorphView
     {
-        //$response = $this->queryUrl();
-        $url = $this->urlBuilder->buildUrl($template, $id, $parameters);
-        $response = (object) [
-            'head' => ['head'],
-            'bodyInline' => $url,
-            'bodyLast' => ['bodyLast'],
-        ];
+        $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
+        $response = $this->queryUrl($url);
 
         return new MorphView(
             $response->head ?? [],
             $response->bodyInline,
             $response->bodyLast && is_array($response->bodyLast) ? $response->bodyLast : []
         );
+    }
+
+    public function queueView(string $template, string $id, array $parameters = [], array $queryParameters = []): void
+    {
+        $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
+        $this->queueUrl($url);
     }
 
     public function attach(SplObserver $observer)
@@ -86,7 +89,8 @@ class MorphClient implements SplSubject
         }
     }
 
-    private function queryUrl(string $url, int $retries = 0)
+    /** @throws MorphErrorException */
+    private function queryUrl(string $url, int $retries = 0): stdClass
     {
         try {
             if (isset($this->promises[$url])) {
@@ -98,6 +102,18 @@ class MorphClient implements SplSubject
                     'verify' => false,
                     'on_stats' => $this->logRequests,
                 ]);
+            }
+
+            // Morph throws 202 in certain cases, e.g. when a request is being made for the first time
+            // See https://confluence.dev.bbc.co.uk/display/morph/Integrating+with+Morph for more info
+            if ($response->getStatusCode() === 202) {
+                if (++$retries > $this->maxRetries) {
+                    $message = "Error communicating with Morph API. Response code was 202 after " . $retries . " retries.";
+                    $this->logger->alert($message);
+                    throw new MorphErrorException($message, 202);
+                }
+
+                return $this->queryUrl($url, $retries);
             }
 
             return json_decode($response->getBody()->getContents());
