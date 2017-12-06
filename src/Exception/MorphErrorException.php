@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace BBC\ProgrammesMorphLibrary;
+namespace BBC\ProgrammesMorphLibrary\Exception;
 
 use Exception;
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace BBC\ProgrammesMorphLibrary;
 
 use BBC\ProgrammesMorphLibrary\Entity\MorphView;
+use BBC\ProgrammesMorphLibrary\Exception\MorphErrorException;
 use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
@@ -37,7 +38,10 @@ class MorphClient implements SplSubject
     /** @var UrlBuilder */
     private $urlBuilder;
 
-    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint, int $timeout = 2)
+    /** @var float */
+    private $timeout;
+
+    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint, float $timeout = 5)
     {
         $this->logger = $logger;
         $this->httpClient = $httpClient;
@@ -48,23 +52,33 @@ class MorphClient implements SplSubject
         };
 
         $this->urlBuilder = new UrlBuilder($endpoint);
+        $this->timeout = $timeout;
     }
 
     /** @throws MorphErrorException */
     public function getView(string $template, string $id, array $parameters = [], array $queryParameters = []): MorphView
     {
+        if ($this->timeout > 0) {
+            array_merge(['timeout' => $this->timeout], $queryParameters);
+        }
+
         $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
         $response = $this->queryUrl($url);
 
         return new MorphView(
+            $id,
             $response->head ?? [],
             $response->bodyInline,
             $response->bodyLast && is_array($response->bodyLast) ? $response->bodyLast : []
         );
     }
 
-    public function queueView(string $template, string $id, array $parameters = [], array $queryParameters = []): void
+    public function queueView(string $template, array $parameters = [], array $queryParameters = []): void
     {
+        if ($this->timeout > 0) {
+            array_merge(['timeout' => $this->timeout], $queryParameters);
+        }
+
         $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
         $this->queueUrl($url);
     }
@@ -140,7 +154,7 @@ class MorphClient implements SplSubject
         }
     }
 
-    private function queueUrl(string $url, string $method = 'get'): void
+    private function queueUrl(string $url): void
     {
         $this->logger->info('Queueing ' . $url);
         $this->promises[$url] = $this->httpClient->getAsync($url, [
