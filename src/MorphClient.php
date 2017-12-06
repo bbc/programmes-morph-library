@@ -59,7 +59,7 @@ class MorphClient implements SplSubject
     public function getView(string $template, string $id, array $parameters = [], array $queryParameters = []): MorphView
     {
         if ($this->timeout > 0) {
-            array_merge(['timeout' => $this->timeout], $queryParameters);
+            $queryParameters = array_merge(['timeout' => $this->timeout], $queryParameters);
         }
 
         $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
@@ -76,7 +76,7 @@ class MorphClient implements SplSubject
     public function queueView(string $template, array $parameters = [], array $queryParameters = []): void
     {
         if ($this->timeout > 0) {
-            array_merge(['timeout' => $this->timeout], $queryParameters);
+            $queryParameters = array_merge(['timeout' => $this->timeout], $queryParameters);
         }
 
         $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
