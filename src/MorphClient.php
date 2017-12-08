@@ -41,7 +41,7 @@ class MorphClient implements SplSubject
     /** @var float */
     private $timeout;
 
-    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint, float $timeout = 5)
+    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint, float $timeout = 1)
     {
         $this->logger = $logger;
         $this->httpClient = $httpClient;
