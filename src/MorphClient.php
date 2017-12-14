@@ -33,15 +33,15 @@ class MorphClient implements SplSubject
     private $httpClient;
 
     /** @var int */
-    private $maxRetries = 3;
+    private $maxRetries = 1;
 
     /** @var UrlBuilder */
     private $urlBuilder;
 
     /** @var float */
-    private $timeout;
+    private $timeout = 2.8;
 
-    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint, float $timeout = 1)
+    public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint)
     {
         $this->logger = $logger;
         $this->httpClient = $httpClient;
@@ -52,7 +52,6 @@ class MorphClient implements SplSubject
         };
 
         $this->urlBuilder = new UrlBuilder($endpoint);
-        $this->timeout = $timeout;
     }
 
     /** @throws MorphErrorException */
@@ -68,7 +67,7 @@ class MorphClient implements SplSubject
         return new MorphView(
             $id,
             $response->head ?? [],
-            $response->bodyInline,
+            $response->bodyInline ?? '',
             $response->bodyLast && is_array($response->bodyLast) ? $response->bodyLast : []
         );
     }
@@ -103,6 +102,16 @@ class MorphClient implements SplSubject
         }
     }
 
+    public function setMaxRetries(int $maxRetries): void
+    {
+        $this->maxRetries = $maxRetries;
+    }
+
+    public function setTimeout(int $timeout): void
+    {
+        $this->timeout = $timeout;
+    }
+
     /** @throws MorphErrorException */
     private function queryUrl(string $url, int $retries = 0): stdClass
     {
@@ -132,15 +141,9 @@ class MorphClient implements SplSubject
 
             return json_decode($response->getBody()->getContents());
         } catch (RequestException $e) {
-            $response = $e->getResponse();
-            $statusCode = 0;
-
-            if ($response) {
-                $statusCode = $response->getStatusCode();
-            }
-
-            if ($statusCode == 404) {
-                return null;
+            if ($e->getResponse() && $e->getResponse()->getStatusCode() == 404) {
+                // empty response
+                return json_decode('');
             }
 
             if (++$retries > $this->maxRetries) {
