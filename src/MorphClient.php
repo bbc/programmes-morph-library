@@ -38,8 +38,8 @@ class MorphClient implements SplSubject
     /** @var UrlBuilder */
     private $urlBuilder;
 
-    /** @var float */
-    private $timeout = 2.8;
+    /** @var int */
+    private $timeout = 3;
 
     public function __construct(LoggerInterface $logger, Client $httpClient, string $endpoint)
     {
