@@ -27,7 +27,7 @@ class UrlBuilder
         $path = '';
 
         foreach ($parameters as $key => $value) {
-            $path .= '/' . rawurldecode((string) $key) . '/' . rawurldecode((string) $value);
+            $path .= '/' . rawurlencode((string) $key) . '/' . rawurlencode((string) $value);
         }
 
         return $path;
