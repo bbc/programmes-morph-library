@@ -41,7 +41,6 @@ class MorphClient
 
     /** @var string[] */
     private $options = [
-        'cacheKeyPrefix' => 'morph',
         'throwExceptions' => false,
     ];
 
@@ -84,11 +83,7 @@ class MorphClient
         );
 
         // Generate key
-        $key = $this->cache->keyHelper(
-            __CLASS__,
-            __FUNCTION__,
-            $this->options['cacheKeyPrefix'], md5($requestEnvelope->getUrl())
-        );
+        $key = $this->cache->keyHelper(__CLASS__, __FUNCTION__, md5($requestEnvelope->getUrl()));
 
         $this->logger->info('[MORPH] Fetching ' . $requestEnvelope->getUrl());
 
@@ -130,11 +125,7 @@ class MorphClient
         );
 
         // Generate key
-        $key = $this->cache->keyHelper(
-            __CLASS__,
-            __FUNCTION__,
-            $this->options['cacheKeyPrefix'], md5($requestEnvelope->getUrl())
-        );
+        $key = $this->cache->keyHelper(__CLASS__, __FUNCTION__, md5($requestEnvelope->getUrl()));
 
         $this->logger->info('[MORPH] Asynchronously fetching ' . $requestEnvelope->getUrl());
 
