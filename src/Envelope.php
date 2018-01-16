@@ -1,9 +1,8 @@
 <?php
 declare(strict_types=1);
 
-namespace BBC\ProgrammesMorphLibrary\Request;
+namespace BBC\ProgrammesMorphLibrary;
 
-use BBC\ProgrammesMorphLibrary\UrlBuilder;
 use Psr\Cache\CacheItemInterface;
 
 class Envelope
