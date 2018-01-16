@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace BBC\ProgrammesMorphLibrary;
 
+use BBC\ProgrammesCachingLibrary\CacheInterface;
 use BBC\ProgrammesMorphLibrary\Entity\MorphView;
 use BBC\ProgrammesMorphLibrary\Exception\MorphErrorException;
+use BBC\ProgrammesMorphLibrary\Request\Envelope;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\RequestException;
@@ -34,25 +36,20 @@ class MorphClient
     /** @var CacheItemPoolInterface */
     private $cache;
 
-    /** @var string */
-    private $standardTTL;
-
-    /** @var string */
-    private $notFoundTTL;
-
     /** @var int */
     private $maxRetries;
 
-    /** @var bool */
-    private $flushCacheItems = false;
+    /** @var string[] */
+    private $options = [
+        'cacheKeyPrefix' => 'morph'
+    ];
 
     public function __construct(
         ClientInterface $client,
-        CacheItemPoolInterface $cache,
+        CacheInterface $cache,
         LoggerInterface $logger,
         string $endpoint,
-        int $standardTTL,
-        int $notFoundTTL,
+        array $options,
         int $timeout = 3,
         int $maxRetries = 1
     ) {
@@ -60,10 +57,9 @@ class MorphClient
         $this->client = $client;
         $this->urlBuilder = new UrlBuilder($endpoint);
         $this->cache = $cache;
-        $this->standardTTL = $standardTTL;
-        $this->notFoundTTL = $notFoundTTL;
         $this->timeout = $timeout;
         $this->maxRetries = $maxRetries;
+        $this->options = array_merge($this->options, $options);
     }
 
     /** @throws MorphErrorException|InvalidArgumentException */
@@ -71,29 +67,42 @@ class MorphClient
         string $template,
         string $id,
         array $parameters,
-        array $queryParameters
-    ): MorphView {
-        if ($this->timeout > 0) {
-            $queryParameters = array_merge(['timeout' => $this->timeout], $queryParameters);
-        }
+        array $queryParameters,
+        $ttl = CacheInterface::NORMAL,
+        $nullTtl = CacheInterface::SHORT
+    ): ?MorphView {
+        $requestEnvelope = new Envelope(
+            $this->urlBuilder,
+            $template,
+            $id,
+            $parameters,
+            $queryParameters,
+            $this->timeout,
+            $ttl,
+            $nullTtl
+        );
 
-        $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
+        $key = $this->cache->keyHelper(
+            __CLASS__,
+            __FUNCTION__,
+            $this->options['cacheKeyPrefix'], md5($requestEnvelope->getUrl())
+        );
 
-        $this->logger->info("[MORPH] Fetching $url");
+        $this->logger->info('[MORPH] Fetching ' . $requestEnvelope->getUrl());
 
-        $cacheItem = $this->fetchCacheItem($url);
+        $cacheItem = $this->cache->getItem($key);
         if ($cacheItem->isHit()) {
-            $this->logger->info("[MORPH] Got $url from cache");
+            $this->logger->info('[MORPH] Got ' . $requestEnvelope->getUrl() . ' from cache');
             return $cacheItem->get();
         }
 
         try {
-            $response = $this->client->request('GET', $url);
+            $response = $this->client->request('GET', $requestEnvelope->getUrl());
         } catch(RequestException $e) {
-            return $this->handleRequestException($e, $cacheItem, $url);
+            return $this->handleRequestException($e, $cacheItem, $requestEnvelope);
         }
 
-        return $this->handleResponse($response, $cacheItem, $id, $url);
+        return $this->handleResponse($response, $cacheItem, $requestEnvelope);
     }
 
     /** @throws MorphErrorException|InvalidArgumentException */
@@ -101,139 +110,129 @@ class MorphClient
         string $template,
         string $id,
         array $parameters,
-        array $queryParameters
+        array $queryParameters,
+        $ttl = CacheInterface::NORMAL,
+        $nullTtl = CacheInterface::SHORT
     ): PromiseInterface {
-        if ($this->timeout > 0) {
-            $queryParameters = array_merge(['timeout' => $this->timeout], $queryParameters);
-        }
+        $requestEnvelope = new Envelope(
+            $this->urlBuilder,
+            $template,
+            $id,
+            $parameters,
+            $queryParameters,
+            $this->timeout,
+            $ttl,
+            $nullTtl
+        );
 
-        $url = $this->urlBuilder->buildUrl($template, $parameters, $queryParameters);
+        $key = $this->cache->keyHelper(
+            __CLASS__,
+            __FUNCTION__,
+            $this->options['cacheKeyPrefix'], md5($requestEnvelope->getUrl())
+        );
 
-        $this->logger->info("[MORPH] Asynchronously fetching $url");
+        $this->logger->info('[MORPH] Asynchronously fetching ' . $requestEnvelope->getUrl());
 
-        $cacheItem = $this->fetchCacheItem($url);
+        $cacheItem = $this->cache->getItem($key);
         if ($cacheItem->isHit()) {
-            $this->logger->info("[MORPH] Got $url from cache");
+            $this->logger->info('[MORPH] Got ' . $requestEnvelope->getUrl() . ' from cache');
             return new FulfilledPromise($cacheItem->get());
         }
 
         try {
-            $requestPromise = $this->client->requestAsync('GET', $url);
+            $requestPromise = $this->client->requestAsync('GET', $requestEnvelope->getUrl());
         } catch (RequestException $e) {
-            return $this->handleRequestException($e, $cacheItem, $url);
+            return $this->handleRequestException($e, $cacheItem, $requestEnvelope);
         }
 
         return $requestPromise->then(
             // Success callback
-            function ($response) use ($cacheItem, $id, $url) {
-                return $this->handleResponse($response, $cacheItem, $id, $url);
+            function ($response) use ($cacheItem, $requestEnvelope) {
+                return $this->handleResponse($response, $cacheItem, $requestEnvelope);
             },
             // Error callback
-            function ($reason) use ($cacheItem, $url) {
-                return $this->handleAsyncError($reason, $cacheItem, $url);
+            function ($reason) use ($cacheItem, $requestEnvelope) {
+                return $this->handleAsyncError($reason, $cacheItem, $requestEnvelope);
             }
         );
     }
 
-    /** @throws InvalidArgumentException */
-    private function fetchCacheItem(string $url): CacheItemInterface
+    public function setFlushCacheItems(bool $flushCacheItems): void
     {
-        $cacheKey = 'morph' . '.' . md5($url);
-        if ($this->flushCacheItems) {
-            $this->cache->deleteItem($cacheKey);
-        }
-
-        return $this->cache->getItem($cacheKey);
+        $this->cache->setFlushCacheItems($flushCacheItems);
     }
 
     /** @throws MorphErrorException */
-    private function handle202(string $url, CacheItemInterface $cacheItem)
+    private function handle202(Envelope $requestEnvelope, CacheItemInterface $cacheItem): ?ResponseInterface
     {
         for ($retry = 0; $retry < $this->maxRetries; $retry++) {
             try {
-                $response = $this->client->request('GET', $url);
+                $response = $this->client->request('GET', $requestEnvelope->getUrl());
                 if ($response->getStatusCode() === 200) {
                     return $response;
                 }
             } catch(RequestException $e) {
-                return $this->handleRequestException($e, $cacheItem, $url);
+                return $this->handleRequestException($e, $cacheItem, $requestEnvelope);
             }
         }
 
         $message = "[MORPH] Error communicating with Morph API. Response code was 202 after $this->maxRetries tries.";
         $this->logger->error($message);
-        throw new MorphErrorException($message);
+        throw new MorphErrorException($message, 202);
     }
 
     /** @throws MorphErrorException */
     private function handleResponse(
         ResponseInterface $response,
         CacheItemInterface $cacheItem,
-        string $id,
-        string $url
-    ): MorphView {
+        Envelope $requestEnvelope
+    ): ?MorphView {
         if ($response->getStatusCode() === 202) {
-            $response = $this->handle202($url, $cacheItem);
+            $response = $this->handle202($requestEnvelope, $cacheItem);
         }
 
         $json = json_decode($response->getBody()->getContents());
         $result = new MorphView(
-            $id,
+            $requestEnvelope->getId(),
             $json->head ?? [],
             $json->bodyInline ?? '',
             $json->bodyLast && is_array($json->bodyLast) ? $json->bodyLast : []
         );
 
-        $cacheItem->set($result);
-        $cacheItem->expiresAfter($this->protectLifetimeFromStampede($this->standardTTL));
-        $this->cache->save($cacheItem);
-
+        $this->cache->setItem($cacheItem, $result, $requestEnvelope->getTtl());
         return $result;
     }
 
     /** @throws MorphErrorException */
-    private function handleRequestException(RequestException $e, CacheItemInterface $cacheItem, string $url): null
-    {
-        if (!$e->getResponse() || $e->getResponse()->getStatusCode() != 404) {
-            $this->logger->error("[MORPH] Error communicating with API on $url. Response code was " . $e->getCode());
-            throw new MorphErrorException($e->getMessage(), $e->getCode(), $e);
+    private function handleRequestException(
+        RequestException $e,
+        CacheItemInterface $cacheItem,
+        Envelope $requestEnvelope
+    ) {
+        if ($e->getResponse() && $e->getResponse()->getStatusCode() === 404) {
+            // 404 results get cached
+            $this->cache->setItem($cacheItem, null, $requestEnvelope->getNullTtl());
+            return null;
         }
 
-        // 404 results get cached
-        $cacheItem->set(null);
-        $cacheItem->expiresAfter($this->protectLifetimeFromStampede($this->notFoundTTL));
-        $this->cache->save($cacheItem);
-
-        return null;
+        $this->logger->error('[MORPH] Error communicating with API on $url. Response code was ' . $e->getCode());
+        throw new MorphErrorException($e->getMessage(), $e->getCode(), $e);
     }
 
     /** @throws MorphErrorException */
-    private function handleAsyncError($reason, CacheItemInterface $cacheItem, string $url)
+    private function handleAsyncError($reason, CacheItemInterface $cacheItem, Envelope $requestEnvelope)
     {
         if ($reason instanceof RequestException) {
-            return $this->handleRequestException($reason, $cacheItem, $url);
+            return $this->handleRequestException($reason, $cacheItem, $requestEnvelope);
         }
 
         if ($reason instanceof Throwable) {
             throw new MorphErrorException($reason->getMessage());
         }
 
-        $msg = "[MORPH] An unknown issue occurred handling a guzzle error whose reason was not an exception. URL: $url";
+        $msg = '[MORPH] An unknown issue occurred handling a guzzle error whose reason was not an exception. URL: ' . $requestEnvelope->getUrl();
 
         $this->logger->error($msg);
         throw new MorphErrorException($msg);
-    }
-
-    private function protectLifetimeFromStampede(int $ttl): int
-    {
-        $ten = floor($ttl / 10);
-        $modifier = rand(0, $ten);
-        $modifier = min($modifier, 120);
-        return $ttl + $modifier;
-    }
-
-    private function setFlushCacheItems(bool $flushCacheItems): void
-    {
-        $this->flushCacheItems = $flushCacheItems;
     }
 }
