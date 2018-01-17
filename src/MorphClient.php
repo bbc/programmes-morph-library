@@ -49,7 +49,7 @@ class MorphClient
         CacheInterface $cache,
         LoggerInterface $logger,
         string $endpoint,
-        array $options,
+        array $options = [],
         int $timeout = 3,
         int $maxRetries = 1
     ) {
