@@ -9,7 +9,7 @@
         "psr/log": "^1.0.0",
         "csa/guzzle-bundle": "^3.0.1",
         "psr/cache": "^1.0.0",
-        "bbc/programmes-caching-library": "dev-getting-started@dev"
+        "bbc/programmes-caching-library": "^1.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^6.0",
