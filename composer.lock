@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "5b35b3f692cb3a8725e9532d012e1fad",
+    "content-hash": "8d1fa60953226428eca5c563e5718752",
     "packages": [
         {
             "name": "bbc/programmes-caching-library",
