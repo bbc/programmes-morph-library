@@ -137,11 +137,7 @@ class MorphClient
         }
 
         // Create promise
-        try {
-            $requestPromise = $this->client->requestAsync('GET', $requestEnvelope->getUrl());
-        } catch (RequestException $e) {
-            return $this->handleRequestException($e, $cacheItem, $requestEnvelope);
-        }
+        $requestPromise = $this->client->requestAsync('GET', $requestEnvelope->getUrl());
 
         return $requestPromise->then(
             // Success callback
