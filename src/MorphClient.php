@@ -192,6 +192,10 @@ class MorphClient
             $response = $this->handle202($requestEnvelope, $cacheItem);
         }
 
+        if (!$response) {
+            return null;
+        }
+
         $json = json_decode($response->getBody()->getContents());
         $result = new MorphView(
             $requestEnvelope->getId(),
