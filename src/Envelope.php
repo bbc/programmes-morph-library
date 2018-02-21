@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace BBC\ProgrammesMorphLibrary;
 
+use DateTimeInterface;
 use Psr\Cache\CacheItemInterface;
 
 class Envelope
@@ -19,10 +20,10 @@ class Envelope
     /** @var string[] */
     private $queryParameters;
 
-    /** @var string */
+    /** @var string|int|DateTimeInterface */
     private $ttl;
 
-    /** @var string */
+    /** @var string|int|DateTimeInterface */
     private $nullTtl;
 
     /** @var CacheItemInterface */
@@ -38,8 +39,8 @@ class Envelope
         array $parameters,
         array $queryParameters,
         int $timeout,
-        string $ttl,
-        string $nullTtl
+        $ttl,
+        $nullTtl
     ) {
         if ($timeout > 0) {
             $queryParameters = array_merge(['timeout' => $timeout], $queryParameters);
@@ -77,12 +78,14 @@ class Envelope
         return $this->queryParameters;
     }
 
-    public function getTtl(): string
+    /** @return string|int|DateTimeInterface */
+    public function getTtl()
     {
         return $this->ttl;
     }
 
-    public function getNullTtl(): string
+    /** @return string|int|DateTimeInterface */
+    public function getNullTtl()
     {
         return $this->nullTtl;
     }
