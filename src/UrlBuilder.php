@@ -5,6 +5,7 @@ namespace BBC\ProgrammesMorphLibrary;
 
 class UrlBuilder
 {
+    
     /** @var string */
     private $endpoint;
 
@@ -13,8 +14,11 @@ class UrlBuilder
         $this->endpoint = rtrim($endpoint, '/');
     }
 
-    public function buildUrl(string $template, array $params, array $queryParams)
+    public function buildUrl(string $route, string $template, array $params, array $queryParams)
     {
+        if (!in_array($route, ['data', 'view])) {
+            throw new Exception('Route must be one of: data, view);
+        }
         return $this->endpoint .
             '/view/' .
             rawurldecode($template) .
