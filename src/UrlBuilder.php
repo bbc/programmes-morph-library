@@ -5,7 +5,6 @@ namespace BBC\ProgrammesMorphLibrary;
 
 class UrlBuilder
 {
-    
     /** @var string */
     private $endpoint;
 
@@ -20,7 +19,7 @@ class UrlBuilder
             throw new Exception('Route must be one of: data, view);
         }
         return $this->endpoint .
-            '/view/' .
+            '/$route/' .
             rawurldecode($template) .
             $this->buildParameters($params) .
             $this->buildQueryParameters($queryParams);
