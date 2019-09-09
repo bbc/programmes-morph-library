@@ -15,11 +15,11 @@ class UrlBuilder
 
     public function buildUrl(string $route, string $template, array $params, array $queryParams)
     {
-        if (!in_array($route, ['data', 'view])) {
-            throw new Exception('Route must be one of: data, view);
+        if (!in_array($route, ['data', 'view'])) {
+            throw new Exception('Route must be one of: data, view');
         }
         return $this->endpoint .
-            '/$route/' .
+            '/' . $route . '/' .
             rawurldecode($template) .
             $this->buildParameters($params) .
             $this->buildQueryParameters($queryParams);

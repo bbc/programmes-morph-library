@@ -64,6 +64,7 @@ class MorphClient
 
     /** @throws MorphErrorException|InvalidArgumentException */
     public function makeCachedViewRequest(
+        string $route,
         string $template,
         string $id,
         array $parameters,
@@ -73,6 +74,7 @@ class MorphClient
     ): ?MorphView {
         $requestEnvelope = new Envelope(
             $this->urlBuilder,
+            $route,
             $template,
             $id,
             $parameters,
@@ -106,6 +108,7 @@ class MorphClient
 
     /** @throws MorphErrorException|InvalidArgumentException */
     public function makeCachedViewPromise(
+        string $route,
         string $template,
         string $id,
         array $parameters,
@@ -115,6 +118,7 @@ class MorphClient
     ): PromiseInterface {
         $requestEnvelope = new Envelope(
             $this->urlBuilder,
+            $route,
             $template,
             $id,
             $parameters,
