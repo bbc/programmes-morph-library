@@ -34,6 +34,7 @@ class Envelope
 
     public function __construct(
         UrlBuilder $urlBuilder,
+        string $route,
         string $template,
         string $id,
         array $parameters,
@@ -46,7 +47,7 @@ class Envelope
             $queryParameters = array_merge(['timeout' => $timeout], $queryParameters);
         }
 
-        $this->url = $urlBuilder->buildUrl($template, $parameters, $queryParameters);
+        $this->url = $urlBuilder->buildUrl($route, $template, $parameters, $queryParameters);
 
         $this->template = $template;
         $this->id = $id;
